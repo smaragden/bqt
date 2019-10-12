@@ -90,7 +90,7 @@ class BlenderApplication(QApplication):
 		elif IS_LINUX:
 			self._get_application_icon_linux()
 		elif IS_WINDOWS:
-			self._get_application_icon_windows()
+			icon = self._get_application_icon_windows()
 		else:
 			raise NotImplementedError
 
@@ -237,7 +237,6 @@ class BlenderApplication(QApplication):
 
 			None
 		"""
-
 		for pid in win32process.EnumProcesses():
 			with suppress(pywintypes.error):
 				handle = win32api.OpenProcess(win32con.PROCESS_ALL_ACCESS, False, pid)
@@ -258,6 +257,7 @@ class BlenderApplication(QApplication):
 					img.loadFromData(QByteArray(bmpstr))
 					img.save(str(TEMP_ICON_FILEPATH), 'png')
 
+		return QIcon(str(TEMP_ICON_FILEPATH))
 
 	def _store_window_geometry(self):
 		"""
