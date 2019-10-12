@@ -4,14 +4,13 @@ License, v. 2.0. If a copy of the MPL was not distributed with this
 file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 
-import atexit
 from contextlib import suppress
-import os
 from pathlib import Path
+import atexit
+import os
 import platform
 import sys
 import tempfile
-
 
 from PySide2.QtWidgets import QApplication, QWidget
 from PySide2.QtGui import QCloseEvent, QIcon, QImage, QWindow
@@ -20,19 +19,32 @@ from PySide2.QtCore import QByteArray, QEvent, QObject, QRect, QSettings
 import bpy
 from bpy.app.handlers import persistent
 
-if platform.system().lower() == 'darwin':
-	# TODO: Need to point this to 'window_geometry_prefs.json' in the use's blender data folder (the folder with /config and /scripts)
+IS_WINDOWS = platform.system().lower() == 'windows'
+IS_MAC = platform.system().lower() == 'darwin'
+IS_LINUX = platform.system().lower() == 'linux'
+
+if IS_MAC:
+	import objc
+	import AppKit
+if IS_LINUX == 'linux':
 	pass
-if platform.system().lower() == 'linux':
-	# TODO: Need to point this to 'window_geometry_prefs.json' in the use's blender data folder (the folder with /config and /scripts)
-	pass
-elif platform.system().lower() == 'windows':
+elif IS_WINDOWS:
 	import pywintypes
 	import win32con
 	import win32api
 	import win32gui
 	import win32process
 	import win32ui
+
+bl_info = {
+	"name": "bqt",
+	"description": "Plugin to help bootstrap PySide2 with an event loop within Blender",
+	"author": "Tech-Artists.org",
+	"version": (0, 1, 0),
+	"blender": (2, 80, 0),
+	"category": "System",
+	"tracker_url": "https://github.com/techartorg/bqt/issues"
+}
 
 SETTINGS_KEY_GEOMETRY = 'Geometry'
 SETTINGS_KEY_MAXIMIZED = 'IsMaximized'
@@ -61,20 +73,32 @@ class BlenderApplication(QApplication):
 		super().__init__(argv)
 		#self.setStyleSheet(<str>)
 		self.should_close = False
-		self._hwnd = win32gui.FindWindow(None, 'blender')
+
+		if IS_WINDOWS:
+			self._hwnd = win32gui.FindWindow(None, 'blender')
+		elif IS_MAC:
+			ns_window = AppKit.NSApp.mainWindow()
+			ns_window.setSharingType_(AppKit.NSWindowSharingReadWrite)
+			self._hwnd = objc.pyobjc_id(ns_window.contentView())
+
 		self._blender_window = QWindow.fromWinId(self._hwnd)
 		self.blender_widget = QWidget.createWindowContainer(self._blender_window)
 
-		if platform.system().lower() == 'darwin':
-			self._get_application_icon_macintosh()
-		elif platform.system().lower() == 'linux':
+		icon = None
+		if IS_MAC:
+			icon = self._get_application_icon_macintosh()
+		elif IS_LINUX:
 			self._get_application_icon_linux()
-		elif platform.system().lower() == 'windows':
+		elif IS_WINDOWS:
 			self._get_application_icon_windows()
+		else:
+			raise NotImplementedError
 
-		QApplication.setWindowIcon(QIcon(str(TEMP_ICON_FILEPATH)))
+		if icon:
+			QApplication.setWindowIcon(icon)
 
-		self._set_window_geometry()
+		if not IS_MAC:  # TODO settings fail to load on macOS so ignoring this for now
+			self._set_window_geometry()
 
 		self.focusObjectChanged.connect(self._on_focus_object_changed)
 
@@ -120,7 +144,8 @@ class BlenderApplication(QApplication):
 		"""
 
 		if focus_object is self.blender_widget:
-			win32gui.SetFocus(self._hwnd)
+			if IS_WINDOWS:
+				win32gui.SetFocus(self._hwnd)
 
 
 	def _set_window_geometry(self):
@@ -140,7 +165,7 @@ class BlenderApplication(QApplication):
 
 		settings = QSettings('Tech-Artists.org', 'Blender Qt Wrapper')
 		settings.beginGroup(SETTINGS_WINDOW_GROUP_NAME)
-		
+
 		if settings.value(SETTINGS_KEY_FULL_SCREEN, 'false').lower() == 'true':
 			self.blender_widget.showFullScreen()
 			return
@@ -190,7 +215,11 @@ class BlenderApplication(QApplication):
 			None
 		"""
 
-		raise NotImplementedError
+		blender_path = bpy.app.binary_path
+		contents_path = Path(blender_path).resolve().parent.parent
+		icon_path = contents_path / "Resources" / "blender icon.icns"
+		icon = QIcon(str(icon_path))
+		return icon
 
 
 	@staticmethod
@@ -372,7 +401,7 @@ def register():
 	"""
 
 	bpy.utils.register_class(QOperator)
-	if not create_global_app in bpy.app.handlers.load_post:
+	if create_global_app not in bpy.app.handlers.load_post:
 		bpy.app.handlers.load_post.append(create_global_app)
 
 
@@ -417,7 +446,7 @@ atexit.register(onexit)
 if __name__ == '__main__':
 	try:
 		unregister()
-	except (ValueError, TypeError) as e:
+	except (ValueError, TypeError, RuntimeError) as e:
 		print('Failed to unregister QOperator: {}'.format(e))
 
 	register()
