@@ -24,6 +24,7 @@ class QOperator(bpy.types.Operator):
     QOperator is a subclass of the Blender `bpy.types.Operator`
     It instantiates the application if one does not exist already
     """
+    
     bl_idname = "qoperator.global_app"
     bl_label = "Global QApplication"
 
@@ -31,7 +32,8 @@ class QOperator(bpy.types.Operator):
         super().__init__()
         self.__qapp = None
 
-    def execute(self, context):
+
+    def execute(self, context) -> set:
         """
 
         Args:
@@ -40,19 +42,18 @@ class QOperator(bpy.types.Operator):
         Returns:
 
         """
-        self.__qapp = instantiate_application()
+        self.__qapp = instantiate_application()        
         return {'PASS_THROUGH'}
 
 
 # CORE FUNCTIONS ###
-
-def load_os_module():
+def load_os_module() -> BlenderApplication:
     """
     Loads the correct OS platform Application Class
 
     Returns: Instance of BlenderApplication
-
     """
+
     operating_system = sys.platform
     if operating_system == 'darwin':
         from blender_applications.darwin_blender_application import DarwinBlenderApplication
@@ -61,8 +62,9 @@ def load_os_module():
         # TODO: LINUX module
         pass
     elif operating_system == 'win32':
-        from blender_applications.win32_blender_application import Win32BlenderApplication
-        return Win32BlenderApplication
+        from blender_applications.win32_blender_application import Win32BlenderApplication      
+        app = Win32BlenderApplication
+        return app
 
 
 def instantiate_application() -> BlenderApplication:
@@ -74,7 +76,7 @@ def instantiate_application() -> BlenderApplication:
     """
     app = QApplication.instance()
     if not app:
-        app = load_os_module()(sys.argv)
+        app = load_os_module()
         bpy.app.timers.register(on_update, persistent=True)
 
     return app
@@ -88,7 +90,7 @@ def on_update() -> float:
 
     """
     app = QApplication.instance()
-    if app.should_close:
+    if app.should_close:    
         bpy.ops.wm.quit_blender({'window': bpy.context.window_manager.windows[0]}, 'INVOKE_DEFAULT')
 
     return TICK
@@ -102,8 +104,8 @@ def create_global_app(*_args):
         *_args:
 
     Returns:
-
     """
+
     if 'startup' in __file__ and not os.getenv('BQT_DISABLE_STARTUP'):
         bpy.ops.qoperator.global_app()
 
@@ -113,8 +115,8 @@ def register():
     Register Blender Operator classes
 
     Returns: None
-
     """
+
     bpy.utils.register_class(QOperator)
     if create_global_app not in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.append(create_global_app)
@@ -125,8 +127,8 @@ def unregister():
     Unregister Blender Operator classes
 
     Returns: None
-
     """
+
     bpy.utils.unregister_class(QOperator)
     if create_global_app in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(create_global_app)
@@ -137,8 +139,8 @@ def on_exit():
     Close BlenderApplication instance on exit
 
     Returns: None
-
     """
+
     app = QApplication.instance()
     if app:
         app.quit()

@@ -4,10 +4,11 @@ License, v. 2.0. If a copy of the MPL was not distributed with this
 file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 
+import abc
 from pathlib import Path
 
 from PySide2.QtWidgets import QApplication, QWidget
-from PySide2.QtGui import QWindow, QCloseEvent
+from PySide2.QtGui import QWindow, QCloseEvent, QIcon
 from PySide2.QtCore import QEvent, QObject, QSettings, QRect
 
 # GLOBALS ###
@@ -19,21 +20,18 @@ SETTINGS_KEY_FULL_SCREEN = 'IsFullScreen'
 SETTINGS_WINDOW_GROUP_NAME = 'MainWindow'
 
 
-class BlenderApplication(QApplication):
+class BlenderApplication(type(QApplication), abc.ABCMeta):
     """
     Base Implementation for QT Blender Window Container
     """
 
-    def __init__(self, argv=None):
-        argv = [] if argv is None else argv
-        super().__init__(argv)
-
-        # System
-        self.os_module = self.load_os_module()()
+    def __init__(self):
+        super().__init__()
 
         # QApplication
         if STYLESHEET_FILEPATH.exists():
             self.setStyleSheet(STYLESHEET_FILEPATH.read_text())
+        
         QApplication.setWindowIcon(self.__get_application_icon())
 
         # Blender Window
@@ -48,16 +46,16 @@ class BlenderApplication(QApplication):
         self.__set_window_geometry()
         self.focusObjectChanged.connect(self.__on_focus_object_changed)
 
-    def notify(self, receiver: QObject, event: QEvent):
-        """
 
+    def notify(self, receiver: QObject, event: QEvent) -> bool:
+        """
         Args:
             receiver: Object to recieve event
             event: Event
 
-        Returns: None
-
+        Returns: bool
         """
+
         if isinstance(event, QCloseEvent) and receiver in (self.blender_widget, self._blender_window):
             event.ignore()
             self._store_window_geometry()
@@ -66,16 +64,18 @@ class BlenderApplication(QApplication):
 
         return super().notify(receiver, event)
 
+
+    @abc.abstractmethod
     def __on_focus_object_changed(self, focus_object: QObject):
         """
-
         Args:
             focus_object: Object to track focus event
 
         Returns: None
-
         """
-        return NotImplementedError
+        
+        pass
+
 
     def __set_window_geometry(self):
         """
@@ -84,8 +84,8 @@ class BlenderApplication(QApplication):
         For this reason it should be set on self.blender_widget.
 
         Returns: None
-
         """
+
         settings = QSettings('Tech-Artists.org', 'Blender Qt Wrapper')
         settings.beginGroup(SETTINGS_WINDOW_GROUP_NAME)
 
@@ -102,23 +102,30 @@ class BlenderApplication(QApplication):
 
         settings.endGroup()
 
-    def __get_application_hwnd(self):
+
+    @abc.abstractstaticmethod
+    def __get_application_hwnd() -> int:
         """
         This finds the blender application window and collects the
         handler window ID
 
         Returns int: Handler Window ID
         """
-        return NotImplementedError
 
-    def __get_application_icon(self):
+        return -1
+
+
+    @abc.abstractstaticmethod
+    def __get_application_icon() -> QIcon:
         """
         This finds the running blender process, extracts the blender icon from the blender.exe file on disk and saves it to the user's temp folder.
         It then creates a QIcon with that data and returns it.
 
         Returns QIcon: Application Icon
         """
-        return NotImplementedError
+
+        return QIcon()
+
 
     def __store_window_geometry(self):
         """
@@ -126,6 +133,7 @@ class BlenderApplication(QApplication):
         The .geometry() method on QWindow includes the size of the application minus the window frame.
         For that reason the _blender_widget should be used.
         """
+
         settings = QSettings('Tech-Artists.org', 'Blender Qt Wrapper')
         settings.beginGroup(SETTINGS_WINDOW_GROUP_NAME)
         settings.setValue(SETTINGS_KEY_GEOMETRY, self.blender_widget.geometry())
