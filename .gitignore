@@ -131,4 +131,6 @@ dmypy.json
 .vscode/
 
 fake_bpy_modules*/
+tasks.json
+run_blender.ps1
 test.py
