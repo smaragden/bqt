@@ -9,7 +9,6 @@ from .blender_application import BlenderApplication
 if sys.platform == 'darwin':
     from .darwin_blender_application import DarwinBlenderApplication
 if sys.platform in ['linux', 'linux2']:
-    # TODO: LINUX module
-    pass
+    from .x11_blender_application import X11BlenderApplication
 elif sys.platform == 'win32':
     from .win32_blender_application import Win32BlenderApplication
